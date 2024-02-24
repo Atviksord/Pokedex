@@ -13,7 +13,7 @@ import (
 type cliCommand struct {
 	name        string
 	description string
-	callback    func() error
+	callback    func(*Config) error
 }
 type Config struct {
 	Next     string
@@ -29,7 +29,7 @@ type Response struct {
 	} `json:"results"`
 }
 
-func commandHelp() error {
+func commandHelp(c *Config) error {
 	commandmap := getCommands()
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("")
@@ -45,12 +45,20 @@ func commandHelp() error {
 
 	return nil
 }
-func commandExit() error {
+func commandExit(c *Config) error {
 	os.Exit(0)
 	return nil
 }
-func apiCallHandler() error {
-	response, err := http.Get("https://pokeapi.co/api/v2/location-area/")
+func apiCallHandler(direction bool, c *Config) error {
+	var getcall string
+	if c.Next == "" && c.Previous == "" {
+		getcall = "https://pokeapi.co/api/v2/location-area/"
+	} else if c.Next != "" && !direction {
+		getcall = c.Next
+	} else if c.Previous != "" && direction {
+		getcall = c.Previous
+	}
+	response, err := http.Get(getcall)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,18 +72,27 @@ func apiCallHandler() error {
 	if err != nil {
 		fmt.Println(err)
 	}
+	c.Next = responseStruct.Next
+	c.Previous = responseStruct.Previous
+
 	for _, result := range responseStruct.Results {
-		fmt.Println(result.Name, result.URL) // prints each location's name and URL
+		fmt.Println(result.Name) // prints each location's name and URL
 	}
 	defer response.Body.Close()
 	return nil
 
 }
-func commandMap() error {
-	apiCallHandler()
+func commandMap(c *Config) error {
+	apiCallHandler(false, c)
+
 	return nil
 }
-func commandMapb() error {
+func commandMapb(c *Config) error {
+	if c.Previous != "" {
+		apiCallHandler(true, c)
+	} else {
+		fmt.Println("Nothing to go back to")
+	}
 	return nil
 }
 func getCommands() map[string]cliCommand {
@@ -106,6 +123,8 @@ func getCommands() map[string]cliCommand {
 
 func main() {
 	commandmap := getCommands()
+	var c Config
+
 	for {
 		fmt.Print("Pokedex > ")
 		scanner := bufio.NewScanner(os.Stdin)
@@ -113,7 +132,7 @@ func main() {
 		line := scanner.Text()
 
 		if cmd, ok := commandmap[line]; ok {
-			err := cmd.callback()
+			err := cmd.callback(&c)
 			if err != nil {
 				fmt.Println("There was an error executing the commando:", err)
 			}
