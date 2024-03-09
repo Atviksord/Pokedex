@@ -1,4 +1,4 @@
-package main
+package pokecache
 
 import (
 	"sync"
@@ -21,7 +21,7 @@ func NewCache(interval time.Duration) *Cache { // returns a new instance (new me
 		cacheMap: make(map[string]cacheEntry),
 		interval: interval,
 	}
-	cache.reapLoop()
+	go cache.reapLoop()
 	return cache
 }
 
@@ -46,16 +46,24 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 
 }
 func (c *Cache) reapLoop() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+
 	ticker := time.NewTicker(c.interval)
 	for range ticker.C {
+		var keystoRemove []string
+		c.mu.Lock()
+		for key := range c.cacheMap {
 
+			if time.Since(c.cacheMap[key].createdAt) > c.interval {
+				keystoRemove = append(keystoRemove, key)
+			}
+
+		}
+		c.mu.Unlock()
+		for _, key := range keystoRemove {
+			c.mu.Lock()
+			delete(c.cacheMap, key)
+			c.mu.Unlock()
+		}
 	}
-
-}
-
-func main() {
-	cache := NewCache(5 * time.Minute)
 
 }
