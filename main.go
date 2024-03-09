@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -20,9 +21,11 @@ type cliCommand struct {
 	callback    func(*Config, *pokecache.Cache, string) error
 }
 type Config struct {
-	Next     string
-	Previous string
-	Results  []struct {
+	Next           string
+	Previous       string
+	Pokelist       map[string]string
+	CurrentPokemon map[string]PokemonStruct
+	Results        []struct {
 		Name string `json:"name"`
 		URL  string `json:"url"`
 	} `json:"results"`
@@ -451,6 +454,37 @@ func apiCallHandler(direction bool, c *Config, newcache *pokecache.Cache) error 
 }
 func commandCatch(c *Config, newcache *pokecache.Cache, targetPokemon string) error {
 
+	pokeurl, ok := c.Pokelist[targetPokemon]
+	if ok {
+		fmt.Printf("Throwing pokeball at %s \n", targetPokemon)
+		response, err := http.Get(pokeurl)
+		if err != nil {
+			log.Fatal(err)
+		}
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var pokeStruct PokemonStruct
+		err = json.Unmarshal(body, &pokeStruct)
+		if err != nil {
+			fmt.Println(err)
+		}
+		randnum := rand.Intn(250)
+		if randnum >= pokeStruct.BaseExperience {
+			fmt.Printf("%s was caught! \n", targetPokemon)
+
+			c.CurrentPokemon[targetPokemon] = pokeStruct
+
+		} else {
+			fmt.Printf(" %s escaped! \n", targetPokemon)
+		}
+
+	} else {
+		fmt.Println("Pokeman not found")
+	}
+
 	return nil
 }
 func commandMap(c *Config, newcache *pokecache.Cache, d string) error {
@@ -468,6 +502,7 @@ func commandMapb(c *Config, newcache *pokecache.Cache, d string) error {
 }
 func commandExplore(c *Config, newcache *pokecache.Cache, areaName string) error {
 	if areaName != "" {
+		pokemap := make(map[string]string)
 		for _, areas := range c.Results {
 			if areas.Name == areaName {
 				fmt.Printf("Exploring: %s ... \n", areas.Name)
@@ -491,9 +526,11 @@ func commandExplore(c *Config, newcache *pokecache.Cache, areaName string) error
 					newcache.Add(areas.URL, body)
 					for _, encounter := range areaStruct.PokemonEncounters {
 						pokemonName := encounter.Pokemon.Name
+						pokemap[encounter.Pokemon.Name] = encounter.Pokemon.URL
 						fmt.Printf("- %s \n", pokemonName)
 
 					}
+					c.Pokelist = pokemap
 
 				} else {
 					var areaStruct AreaResponse
@@ -503,14 +540,25 @@ func commandExplore(c *Config, newcache *pokecache.Cache, areaName string) error
 					}
 					for _, encounter := range areaStruct.PokemonEncounters {
 						pokemonName := encounter.Pokemon.Name
+						pokemap[encounter.Pokemon.Name] = encounter.Pokemon.URL
 						fmt.Printf("- %s \n", pokemonName)
 					}
+					c.Pokelist = pokemap
 
 				}
 
 			}
 
 		}
+	}
+
+	return nil
+}
+func commandPokedex(c *Config, newcache *pokecache.Cache, d string) error {
+	fmt.Println("Your Pokedex:")
+	for pokemon := range c.CurrentPokemon {
+
+		fmt.Printf("	-%s\n", pokemon)
 	}
 
 	return nil
@@ -548,13 +596,45 @@ func getCommands() map[string]cliCommand {
 			description: "catches selected pokemon",
 			callback:    commandCatch,
 		},
+		"inspect": {
+			name:        "inspect",
+			description: "inspects the target pokemon",
+			callback:    commandInspect,
+		},
+		"pokedex": {
+			name:        "pokedex",
+			description: "shows your caught pokemon",
+			callback:    commandPokedex,
+		},
 	}
+}
+func commandInspect(c *Config, newcache *pokecache.Cache, inspectPokemon string) error {
+	pokemon, ok := c.CurrentPokemon[inspectPokemon]
+	if ok {
+		fmt.Printf(" Name: %s \n", pokemon.Name)
+		fmt.Printf(" Height: %d \n", pokemon.Height)
+		fmt.Printf(" Weight: %d \n", pokemon.Weight)
+		fmt.Println(" Stats:")
+		for _, stat := range pokemon.Stats {
+			fmt.Printf("	-%s: %d\n", stat.Stat.Name, stat.BaseStat)
+		}
+		fmt.Println("Types:")
+		for _, stat := range pokemon.Types {
+			fmt.Printf("	-%s:\n", stat.Type.Name)
+		}
+
+	} else {
+		fmt.Println("You have not caught that pokemon")
+	}
+
+	return nil
 }
 
 func main() {
 	commandmap := getCommands()
 	var c Config
 	newcache := pokecache.NewCache(1 * time.Minute)
+	c.CurrentPokemon = make(map[string]PokemonStruct)
 
 	for {
 		fmt.Print("Pokedex > ")
