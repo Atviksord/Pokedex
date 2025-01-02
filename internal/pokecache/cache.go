@@ -36,14 +36,10 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 	defer c.mu.Unlock()
 
 	if cacheEntry, exists := c.cacheMap[key]; exists {
-
 		return cacheEntry.val, true
-
 	} else {
-
 		return nil, false
 	}
-
 }
 func (c *Cache) reapLoop() {
 
@@ -56,7 +52,6 @@ func (c *Cache) reapLoop() {
 			if time.Since(c.cacheMap[key].createdAt) > c.interval {
 				keystoRemove = append(keystoRemove, key)
 			}
-
 		}
 		c.mu.Unlock()
 		for _, key := range keystoRemove {

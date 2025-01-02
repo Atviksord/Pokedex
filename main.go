@@ -374,6 +374,13 @@ type PokemonStruct struct {
 	Weight int `json:"weight"`
 }
 
+func cleanInput(text string) []string {
+
+	d := strings.Fields(strings.TrimSpace(strings.ToLower(text)))
+
+	return d
+}
+
 func commandHelp(c *Config, newcache *pokecache.Cache, d string) error {
 	commandmap := getCommands()
 	fmt.Println("Welcome to the Pokedex!")
@@ -391,6 +398,7 @@ func commandHelp(c *Config, newcache *pokecache.Cache, d string) error {
 	return nil
 }
 func commandExit(c *Config, newcache *pokecache.Cache, d string) error {
+	fmt.Print("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
