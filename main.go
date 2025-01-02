@@ -643,13 +643,17 @@ func main() {
 	var c Config
 	newcache := pokecache.NewCache(1 * time.Minute)
 	c.CurrentPokemon = make(map[string]PokemonStruct)
-
+	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("Pokedex > ")
-		scanner := bufio.NewScanner(os.Stdin)
+
 		scanner.Scan()
 		line := scanner.Text()
 		words := strings.Fields(line)
+
+		if len(words) == 0 {
+			continue
+		}
 
 		if cmd, ok := commandmap[words[0]]; ok {
 			if len(words) > 1 {
